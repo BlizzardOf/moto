@@ -326,6 +326,18 @@ class GlueResponse(BaseResponse):
         self.glue_backend.delete_crawler(name)  # type: ignore[arg-type]
         return ""
 
+    def start_crawler_schedule(self) -> str:
+        name = self.parameters.get("Name")
+        self.glue_backend.start_crawler_schedule(name)
+        return ""
+
+    def stop_crawler_schedule(self) -> str:
+        name = self.parameters.get("Name")
+        if not name:
+            raise ValueError()
+        self.glue_backend.stop_crawler_schedule(str(name))
+        return ""
+
     def create_job(self) -> str:
         name = self._get_param("Name")
         description = self._get_param("Description")

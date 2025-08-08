@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 from moto.core.exceptions import JsonRESTError
 
@@ -315,4 +315,17 @@ class DisabledCompatibilityVersioningException(GSRInvalidInputException):
     ):
         super().__init__(
             f"Compatibility DISABLED does not allow versioning. SchemaId: SchemaId(schemaArn={schema_arn if schema_arn else null}, schemaName={schema_name if schema_name else null}, registryName={registry_name if registry_name else null})"
+        )
+
+
+class NoScheduleException(GlueClientError):
+    def __init__(self) -> None:
+        super().__init__("NoScheduleException", "No schedule found.")
+
+
+class SchedulerNotRunningException(GlueClientError):
+    def __init__(self) -> None:
+        super().__init__(
+            "SchedulerNotRunningException",
+            "Scheduler is already stopped.",
         )

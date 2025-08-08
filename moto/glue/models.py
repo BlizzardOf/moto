@@ -29,8 +29,10 @@ from .exceptions import (
     JobNotFoundException,
     JobRunNotFoundException,
     JsonRESTError,
+    NoScheduleException,
     PartitionAlreadyExistsException,
     PartitionNotFoundException,
+    SchedulerNotRunningException,
     SchemaNotFoundException,
     SchemaVersionMetadataAlreadyExistsException,
     SchemaVersionNotFoundFromSchemaIdException,
@@ -460,6 +462,24 @@ class GlueBackend(BaseBackend):
             del self.crawlers[name]
         except KeyError:
             raise CrawlerNotFoundException(name)
+
+    def start_crawler_schedule(self, name: str) -> None:
+        if not (crawler := self.crawlers.get(name)):
+            raise CrawlerNotFoundException(name)
+
+        if not (schedule := crawler.schedule):
+            raise NoScheduleException()
+
+        schedule.state = "TRANSITIONING_TO_SCHEDULED"
+
+    def stop_crawler_schedule(self, name: str) -> None:
+        if not (crawler := self.crawlers.get(name)):
+            raise CrawlerNotFoundException(name)
+
+        if not (schedule := crawler.schedule):
+            raise SchedulerNotRunningException()
+
+        schedule.state = "NOT_SCHEDULED"
 
     def create_job(
         self,
@@ -1510,7 +1530,7 @@ class FakeCrawler(BaseModel):
         database_name: str,
         description: str,
         targets: Dict[str, Any],
-        schedule: str,
+        schedule: Optional[str],
         classifiers: List[str],
         table_prefix: str,
         schema_change_policy: Dict[str, str],
@@ -1526,7 +1546,7 @@ class FakeCrawler(BaseModel):
         self.database_name = database_name
         self.description = description
         self.targets = targets
-        self.schedule = schedule
+        self.schedule = FakeCrawlSchedule(schedule) if schedule else None
         self.classifiers = classifiers
         self.table_prefix = table_prefix
         self.schema_change_policy = schema_change_policy
@@ -1571,10 +1591,7 @@ class FakeCrawler(BaseModel):
         }
 
         if self.schedule:
-            data["Schedule"] = {
-                "ScheduleExpression": self.schedule,
-                "State": "SCHEDULED",
-            }
+            data["Schedule"] = self.schedule.as_dict()
 
         if self.last_crawl_info:
             data["LastCrawl"] = self.last_crawl_info.as_dict()
@@ -1622,6 +1639,23 @@ class LastCrawlInfo(BaseModel):
             "StartTime": self.start_time,
             "Status": self.status,
         }
+
+
+class FakeCrawlSchedule:
+    def __init__(
+        self,
+        schedule: str,
+    ) -> None:
+        self.schedule = schedule
+        self.state = "SCHEDULED"
+
+    def as_dict(self) -> Dict[str, str]:
+        return_dict = {
+            "Schedule": self.schedule,
+        }
+        if self.state:
+            return_dict["State"] = self.state
+        return return_dict
 
 
 class FakeJob:
